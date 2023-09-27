@@ -1,8 +1,9 @@
 import streamlit as st
-import cv2
 from PIL import Image
+from PIL import ExifTags
 import requests
 import os
+import io
 import numpy as np
 
 
@@ -58,15 +59,30 @@ else:
 
     # read file once and store this as variable
     file_data = img_file.read()
+
+    # Display image using PIL
+    pil_img = Image.open(io.BytesIO(file_data))
+
+    # Check and correct image orientation
+    try:
+        for orientation in ExifTags.TAGS.keys():
+            if ExifTags.TAGS[orientation] == 'Orientation':
+                break
+                # orientation variable now contains the numerical ID of the 'Orientation' tag
+        exif = dict(pil_img._getexif().items())
+
+        if exif[orientation] == 3:
+            pil_img = pil_img.rotate(180, expand=True)
+        if exif[orientation] == 6:
+            pil_img = pil_img.rotate(270, expand=True)
+        if exif[orientation] == 8:
+            pil_img = pil_img.rotate(90, expand=True)
+    except (AttributeError, KeyError, IndexError):
+        # cases where the image doesn't have EXIF info
+        pass
     
-    # convert uploaded file to bytes       
-    file_bytes = np.asarray(bytearray(file_data), dtype=np.uint8)
-
-    # decode and display image
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    st.image(img_rgb)
-
+    st.image(pil_img)
+    
     # send image data to the API
     response = requests.post(API_URL, files={'file': ('image.jpg', file_data)})
     
